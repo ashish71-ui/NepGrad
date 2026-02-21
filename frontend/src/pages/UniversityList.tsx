@@ -47,7 +47,7 @@ const UniversityList: React.FC<UniversityListProps> = ({ isAdmin = false }) => {
   };
 
   // Handle apply/withdraw directly from list
-  const handleApplyToggle = async (e: React.MouseEvent, universityId: number) => {
+  const handleApplyToggle = async (_e: React.MouseEvent, universityId: number) => {
     const applied = hasAppliedTo(universityId);
     
     if (applied) {
@@ -80,11 +80,8 @@ const UniversityList: React.FC<UniversityListProps> = ({ isAdmin = false }) => {
   };
 
   // Handle apply status change
-  const handleApplyChange = (universityId: number, applied: boolean) => {
-    if (applied) {
-      // Refresh applications
-      universityService.getMyApplications().then(setApplications).catch(console.error);
-    }
+  const handleApplyChange = (_universityId: number, _applied: boolean) => {
+    loadApplications();
   };
 
   // Load universities when any dependency changes
@@ -203,11 +200,6 @@ const UniversityList: React.FC<UniversityListProps> = ({ isAdmin = false }) => {
   // Handle clicking on a card to view details
   const handleCardClick = (university: University) => {
     setSelectedUniversity(university);
-  };
-
-  // Handle back to list
-  const handleBackToList = () => {
-    setSelectedUniversity(null);
   };
 
   // Render pagination

@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (responseData && typeof responseData === 'object') {
           const errors: string[] = [];
-          for (const [key, value] of Object.entries(responseData)) {
+          for (const [, value] of Object.entries(responseData)) {
             if (Array.isArray(value)) {
               errors.push(value[0]);
             } else if (typeof value === 'string') {
