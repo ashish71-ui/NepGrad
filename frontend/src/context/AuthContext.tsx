@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_USE_PROXY === 'true' 
   ? '/api' 
-  : (import.meta.env.VITE_API_URL || 'http://localhost:8000/api');
+  : (import.meta.env.VITE_API_URL || '/api/');
 
 export interface User {
   id: number;
@@ -182,3 +182,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
