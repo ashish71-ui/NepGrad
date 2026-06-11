@@ -1,16 +1,21 @@
+/* ═══════════════════════════════════════════════════════════════════
+   AUTH PAGES (LOGIN/SIGNUP) STYLES
+   Uses centralized theme from index.css
+   ═══════════════════════════════════════════════════════════════════ */
+
 .auth-container {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--accent-primary);
 }
 
 .auth-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   padding: 40px;
   width: 100%;
   max-width: 440px;
@@ -25,14 +30,14 @@
 
 .auth-header h1 {
   font-size: 28px;
-  font-weight: 700;
-  color: #1a202c;
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .auth-header p {
-  font-size: 14px;
-  color: #718096;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -42,7 +47,7 @@
   gap: 20px;
 }
 
-.form-group {
+.auth-form .form-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -57,57 +62,61 @@
   flex: 1;
 }
 
-.form-group label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
+.auth-form label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
 }
 
-.form-group input {
+.auth-form input {
   padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s ease;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-family: var(--font-sans);
+  transition: all var(--transition-fast);
   outline: none;
   width: 100%;
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 
-.form-group input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.auth-form input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-light);
 }
 
-.form-group input::placeholder {
-  color: #9ca3af;
+.auth-form input::placeholder {
+  color: var(--text-placeholder);
 }
 
-.form-group input.input-error {
-  border-color: #dc2626;
+.auth-form input.input-error {
+  border-color: var(--status-error);
 }
 
 .field-error {
-  color: #dc2626;
-  font-size: 12px;
+  color: var(--status-error);
+  font-size: var(--text-xs);
   margin-top: 4px;
 }
 
 .auth-button {
   padding: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--accent-primary);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-base);
   margin-top: 8px;
 }
 
 .auth-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-md);
 }
 
 .auth-button:disabled {
@@ -117,11 +126,11 @@
 
 .auth-error {
   padding: 12px;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #dc2626;
-  font-size: 14px;
+  background: var(--status-error-bg);
+  border: 1px solid var(--status-error);
+  border-radius: var(--radius-md);
+  color: var(--status-error);
+  font-size: var(--text-sm);
   text-align: center;
 }
 
@@ -131,15 +140,15 @@
 }
 
 .auth-footer p {
-  font-size: 14px;
-  color: #718096;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   margin: 0;
 }
 
 .auth-footer a {
-  color: #667eea;
+  color: var(--accent-primary);
   text-decoration: none;
-  font-weight: 600;
+  font-weight: var(--font-semibold);
 }
 
 .auth-footer a:hover {
@@ -183,9 +192,9 @@
     font-size: 13px;
   }
 
-  .form-group input {
+  .auth-form input {
     padding: 10px 12px;
-    font-size: 14px;
+    font-size: var(--text-sm);
   }
 
   .auth-button {

@@ -5,4 +5,5 @@ python-dotenv
 gunicorn
 django-cors-headers
 pillow
+openpyxl
 

@@ -12,7 +12,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-(-2(63v1ihwjw30xxb0d+
 # Setting to False for production is safer, but keeping True briefly if you need to see errors
 DEBUG = True 
 
-ALLOWED_HOSTS = ['nepgrad.ashishdkl.com.np', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['nepgrad.ashishdkl.com.np', '127.0.0.1',  'localhost']
 
 # Application definition
 INSTALLED_APPS = [
@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'apps',
     'apps.accounts',
     'apps.universities',
+    'apps.wc_predictor',
 ]
 
 MIDDLEWARE = [
@@ -98,6 +99,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     'https://nepgrad.ashishdkl.com.np',
     'http://nepgrad.ashishdkl.com.np',
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 # Required for POST requests from your React frontend

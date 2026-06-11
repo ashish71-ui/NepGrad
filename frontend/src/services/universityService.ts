@@ -41,6 +41,8 @@ export interface University {
   gmat_score: number | null;
   scholarships_available: boolean;
   scholarships_description: string;
+  uniassist_required: boolean;
+  remark: string;
   email: string;
   phone: string;
   is_active: boolean;
@@ -60,6 +62,47 @@ export interface Program {
   description: string;
   requirements: string;
   is_active: boolean;
+  // DAAD fields
+  reason: string;
+  application_deadline: string;
+  application_deadline_2: string;
+  portal: string;
+  application_submission_info: string;
+  program_url: string;
+  course_location: string;
+  teaching_language: string;
+  languages_description: string;
+  duration_text: string;
+  beginning: string;
+  course_organisation: string;
+  international_elements: string;
+  semester_contribution: string;
+  costs_of_living: string;
+  funding_available: string;
+  funding_description: string;
+  academic_requirements: string;
+  language_requirements: string;
+  part_time_employment: string;
+  accommodation_info: string;
+  career_services: string;
+  international_support: string;
+  study_mode: string;
+  integrated_internships: string;
+  supervisor_student_ratio: string;
+  additional_study_info: string;
+  general_services: string;
+  study_abroad: string;
+  other_international_elements: string;
+  in_cooperation_with: string;
+  diverse_background: string;
+  special_funding: string;
+  mode_of_study: string;
+  daad_funding_programme: string;
+  pace_of_course: string;
+  attendance_phases_in_germany: string;
+  technical_equipment: string;
+  certificates_for_modules: string;
+  additional_tuition_info: string;
 }
 
 export interface Application {
@@ -73,6 +116,13 @@ export interface Application {
   notes: string;
   applied_at: string;
   updated_at: string;
+}
+
+export interface ExcelUploadResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: Array<{ row: number; error: string }>;
 }
 
 export interface DashboardStats {
@@ -168,6 +218,32 @@ export const universityService = {
   updateApplication: async (id: number, data: Partial<Application>): Promise<Application> => {
     const response = await universityApi.patch(`/applications/${id}/`, data);
     return response.data;
+  },
+
+  // Bulk-import programs from Excel file (admin only)
+  uploadExcel: async (file: File, defaultCountry = 'Germany'): Promise<ExcelUploadResult> => {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('default_country', defaultCountry);
+    const response = await universityApi.post('/upload-excel/', body, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Download the Excel template file (admin only)
+  downloadTemplate: async (): Promise<void> => {
+    const response = await universityApi.get('/download-template/', {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(new Blob([response.data]));
+    const a   = document.createElement('a');
+    a.href    = url;
+    a.download = 'nepgrad_template.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 };
 

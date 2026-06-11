@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_USE_PROXY === 'true' 
   ? '/api' 
-  : (import.meta.env.VITE_API_URL || '/api/');
+  : (import.meta.env.VITE_API_URL || '/api/s');
 
 export interface User {
   id: number;
