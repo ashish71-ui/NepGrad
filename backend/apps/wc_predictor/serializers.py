@@ -1,6 +1,21 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import Team, Match, Prediction, TournamentPrediction, TournamentResult, PointsConfig
+from django.contrib.auth import get_user_model
+from .models import WCGroup, Team, Match, Prediction, TournamentPrediction, TournamentResult, PointsConfig
+
+User = get_user_model()
+
+
+class WCGroupSerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+
+    class Meta:
+        model = WCGroup
+        fields = ['id', 'name', 'code', 'created_by_username', 'member_count', 'created_at']
+        read_only_fields = ['code', 'created_by_username', 'member_count', 'created_at']
+
+    def get_member_count(self, obj):
+        return obj.members.count()
 
 
 class TeamSerializer(serializers.ModelSerializer):

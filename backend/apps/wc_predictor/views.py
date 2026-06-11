@@ -8,8 +8,9 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
 
-from .models import Team, Match, Prediction, TournamentPrediction, TournamentResult, PointsConfig
+from .models import WCGroup, Team, Match, Prediction, TournamentPrediction, TournamentResult, PointsConfig
 from .serializers import (
+    WCGroupSerializer,
     TeamSerializer, MatchSerializer, PredictionSerializer,
     TournamentPredictionSerializer, TournamentResultSerializer,
     PointsConfigSerializer, LeaderboardEntrySerializer,
@@ -161,9 +162,24 @@ def tournament_result(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def leaderboard(request):
+    # Optional group filter: ?group=<id>  (used by group members) or ?group=mine
+    group_id = request.query_params.get('group')
+    member_ids = None
+
+    if group_id:
+        try:
+            grp = WCGroup.objects.get(pk=int(group_id))
+            member_ids = set(grp.members.values_list('id', flat=True))
+            # Include admin creators even if not formally members
+        except (WCGroup.DoesNotExist, ValueError):
+            pass
+
+    pred_qs = Prediction.objects.filter(points_earned__isnull=False)
+    if member_ids is not None:
+        pred_qs = pred_qs.filter(user__id__in=member_ids)
+
     users_with_match_pts = (
-        Prediction.objects
-        .filter(points_earned__isnull=False)
+        pred_qs
         .values('user__id', 'user__username')
         .annotate(
             match_points=Sum('points_earned'),
@@ -176,7 +192,6 @@ def leaderboard(request):
         )
     )
 
-    # Build dict keyed by user_id for merging
     data = {}
     for entry in users_with_match_pts:
         uid = entry['user__id']
@@ -190,8 +205,11 @@ def leaderboard(request):
             'tournament_points': 0,
         }
 
-    # Add tournament points
-    for tp in TournamentPrediction.objects.filter(points_earned__isnull=False).select_related('user'):
+    tp_qs = TournamentPrediction.objects.filter(points_earned__isnull=False).select_related('user')
+    if member_ids is not None:
+        tp_qs = tp_qs.filter(user__id__in=member_ids)
+
+    for tp in tp_qs:
         uid = tp.user.id
         if uid not in data:
             data[uid] = {
@@ -206,24 +224,23 @@ def leaderboard(request):
         data[uid]['total_points'] += tp.points_earned or 0
         data[uid]['tournament_points'] = tp.points_earned or 0
 
-    # Include users who made predictions but earned 0 points
-    all_predictor_ids = set(
-        Prediction.objects.values_list('user__id', flat=True).distinct()
-    ) | set(
-        TournamentPrediction.objects.values_list('user__id', flat=True).distinct()
-    )
-    for uid in all_predictor_ids:
-        if uid not in data:
-            user = User.objects.get(pk=uid)
-            data[uid] = {
-                'user_id': uid,
-                'username': user.username,
-                'total_points': 0,
-                'predictions_made': Prediction.objects.filter(user_id=uid).count(),
-                'exact_scores': 0,
-                'correct_winners': 0,
-                'tournament_points': 0,
-            }
+    # Also ensure every group member appears (even with 0 predictions)
+    if member_ids is not None:
+        for uid in member_ids:
+            if uid not in data:
+                try:
+                    u = User.objects.get(pk=uid)
+                    data[uid] = {
+                        'user_id': uid,
+                        'username': u.username,
+                        'total_points': 0,
+                        'predictions_made': Prediction.objects.filter(user_id=uid).count(),
+                        'exact_scores': 0,
+                        'correct_winners': 0,
+                        'tournament_points': 0,
+                    }
+                except User.DoesNotExist:
+                    pass
 
     entries = sorted(data.values(), key=lambda x: -x['total_points'])
     for i, entry in enumerate(entries, 1):
@@ -282,3 +299,39 @@ def my_stats(request):
         ).count(),
         'points_config': PointsConfigSerializer(config).data,
     })
+
+
+# ── WC Group views ────────────────────────────────────────────────────────
+
+class WCGroupViewSet(viewsets.ModelViewSet):
+    """Admin-only: create, list, delete groups."""
+    queryset = WCGroup.objects.prefetch_related('members').all()
+    serializer_class = WCGroupSerializer
+    permission_classes = [IsAdminUser]
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def join_group(request):
+    code = (request.data.get('code') or '').strip().upper()
+    if not code:
+        return Response({'error': 'Join code is required.'}, status=400)
+    try:
+        group = WCGroup.objects.get(code=code)
+    except WCGroup.DoesNotExist:
+        return Response({'error': 'Invalid code. No group found.'}, status=404)
+
+    group.members.add(request.user)
+    return Response(WCGroupSerializer(group).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_group(request):
+    group = request.user.wc_groups.order_by('created_at').first()
+    if not group:
+        return Response(None)
+    return Response(WCGroupSerializer(group).data)

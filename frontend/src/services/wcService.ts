@@ -87,6 +87,15 @@ export interface LeaderboardEntry {
   tournament_points: number;
 }
 
+export interface WCGroup {
+  id: number;
+  name: string;
+  code: string;
+  created_by_username: string;
+  member_count: number;
+  created_at: string;
+}
+
 export interface MyStats {
   total_points: number;
   match_points: number;
@@ -141,8 +150,9 @@ export const wcService = {
   setTournamentResult: (winner_id: number | null, runner_up_id: number | null, is_final: boolean) =>
     wcApi.put<TournamentResult>('/tournament-result/', { winner_id, runner_up_id, is_final }).then(r => r.data),
 
-  // Leaderboard
-  getLeaderboard: () => wcApi.get<LeaderboardEntry[]>('/leaderboard/').then(r => r.data),
+  // Leaderboard — pass groupId to scope to a group
+  getLeaderboard: (groupId?: number) =>
+    wcApi.get<LeaderboardEntry[]>('/leaderboard/', { params: groupId ? { group: groupId } : {} }).then(r => r.data),
 
   // Points config
   getPointsConfig: () => wcApi.get<PointsConfig>('/points-config/').then(r => r.data),
@@ -151,6 +161,13 @@ export const wcService = {
 
   // My stats
   getMyStats: () => wcApi.get<MyStats>('/my-stats/').then(r => r.data),
+
+  // Groups
+  getGroups: () => wcApi.get<WCGroup[]>('/groups/').then(r => r.data),
+  createGroup: (name: string) => wcApi.post<WCGroup>('/groups/', { name }).then(r => r.data),
+  deleteGroup: (id: number) => wcApi.delete(`/groups/${id}/`),
+  joinGroup: (code: string) => wcApi.post<WCGroup>('/groups/join/', { code }).then(r => r.data),
+  getMyGroup: () => wcApi.get<WCGroup | null>('/groups/mine/').then(r => r.data),
 };
 
 export default wcService;

@@ -10,6 +10,8 @@ import WCHome from './pages/wc/WCHome';
 import WCMatches from './pages/wc/WCMatches';
 import WCTournament from './pages/wc/WCTournament';
 import WCAdmin from './pages/wc/WCAdmin';
+import { WCGroupProvider } from './pages/wc/WCGroupContext';
+import WCGroupGuard from './pages/wc/WCGroupGuard';
 import './App.css';
 
 // Global Navigation Component
@@ -164,18 +166,19 @@ function App() {
               </>
             }
           />
-          {/* WC Predictor — standalone dark-themed app */}
-          <Route path="/wc" element={<WCHome />} />
-          <Route path="/wc/matches" element={<WCMatches />} />
-          <Route path="/wc/tournament" element={<WCTournament />} />
-          <Route
-            path="/wc/admin"
-            element={
-              <ProtectedRoute>
-                <WCAdmin />
-              </ProtectedRoute>
-            }
-          />
+          {/* WC Predictor — group context wraps all WC routes */}
+          <Route path="/wc/*" element={
+            <WCGroupProvider>
+              <Routes>
+                <Route path="" element={<WCHome />} />
+                <Route path="matches" element={<WCGroupGuard><WCMatches /></WCGroupGuard>} />
+                <Route path="tournament" element={<WCGroupGuard><WCTournament /></WCGroupGuard>} />
+                <Route path="admin" element={
+                  <ProtectedRoute><WCAdmin /></ProtectedRoute>
+                } />
+              </Routes>
+            </WCGroupProvider>
+          } />
         </Routes>
       </Router>
     </AuthProvider>

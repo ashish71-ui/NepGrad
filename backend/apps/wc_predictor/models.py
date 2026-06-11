@@ -1,6 +1,38 @@
+import random
+import string
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+
+def _generate_code():
+    chars = string.ascii_uppercase + string.digits
+    while True:
+        code = ''.join(random.choices(chars, k=6))
+        if not WCGroup.objects.filter(code=code).exists():
+            return code
+
+
+class WCGroup(models.Model):
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=6, unique=True, editable=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, related_name='created_wc_groups',
+    )
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, related_name='wc_groups', blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = _generate_code()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} [{self.code}]"
 
 
 class Team(models.Model):

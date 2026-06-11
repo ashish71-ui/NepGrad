@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import wcService, {
-  type Team, type Match, type PointsConfig, type TournamentResult,
+  type Team, type Match, type PointsConfig, type TournamentResult, type WCGroup,
 } from '../../services/wcService';
 import WCLayout from './WCLayout';
 import { useAuth } from '../../context/AuthContext';
 
-type AdminTab = 'teams' | 'matches' | 'results' | 'config' | 'tournament';
+type AdminTab = 'groups' | 'teams' | 'matches' | 'results' | 'config' | 'tournament';
 
 const STAGES = [
   { value: 'group', label: 'Group Stage' },
@@ -27,6 +27,12 @@ const WCAdmin: React.FC = () => {
   const [teamForm, setTeamForm] = useState({ name: '', flag: '', group: '' });
   const [editingTeam, setEditingTeam] = useState<number | null>(null);
   const [teamSaving, setTeamSaving] = useState(false);
+
+  // Groups state
+  const [groups, setGroups] = useState<WCGroup[]>([]);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Matches state
   const [matches, setMatches] = useState<Match[]>([]);
@@ -72,14 +78,16 @@ const WCAdmin: React.FC = () => {
 
   const loadAll = async () => {
     try {
-      const [ts, ms, cfg, tr] = await Promise.all([
+      const [ts, ms, cfg, tr, gs] = await Promise.all([
         wcService.getTeams(),
         wcService.getMatches(),
         wcService.getPointsConfig(),
         wcService.getTournamentResult(),
+        wcService.getGroups(),
       ]);
       setTeams(ts);
       setMatches(ms);
+      setGroups(gs);
       setConfigForm(cfg);
       setTournResult(tr);
       if (tr) {
@@ -98,6 +106,38 @@ const WCAdmin: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── Groups ───────────────────────────────────────────────────────────────
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) { setError('Group name is required.'); return; }
+    setError(null);
+    setGroupSaving(true);
+    try {
+      const created = await wcService.createGroup(newGroupName.trim());
+      setGroups(prev => [created, ...prev]);
+      setNewGroupName('');
+    } catch {
+      setError('Failed to create group.');
+    } finally {
+      setGroupSaving(false);
+    }
+  };
+
+  const handleDeleteGroup = async (id: number) => {
+    if (!confirm('Delete this group? Members will lose access.')) return;
+    try {
+      await wcService.deleteGroup(id);
+      setGroups(prev => prev.filter(g => g.id !== id));
+    } catch {
+      setError('Failed to delete group.');
+    }
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code).catch(() => {});
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   // ── Teams ────────────────────────────────────────────────────────────────
@@ -279,12 +319,79 @@ const WCAdmin: React.FC = () => {
         )}
 
         <div className="wc-admin-tabs">
-          {(['teams', 'matches', 'results', 'tournament', 'config'] as AdminTab[]).map(t => (
+          {(['groups', 'teams', 'matches', 'results', 'tournament', 'config'] as AdminTab[]).map(t => (
             <button key={t} className={`wc-admin-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {{ teams: '🌍 Teams', matches: '⚽ Matches', results: '📊 Set Results', tournament: '🏆 Tournament', config: '⭐ Points Config' }[t]}
+              {{ groups: '👥 Groups', teams: '🌍 Teams', matches: '⚽ Matches', results: '📊 Set Results', tournament: '🏆 Tournament', config: '⭐ Points Config' }[t]}
             </button>
           ))}
         </div>
+
+        {/* ── Groups ── */}
+        {tab === 'groups' && (
+          <div>
+            <div className="wc-card" style={{ marginBottom: 20 }}>
+              <div className="wc-card-title">Create New Group</div>
+              <p style={{ fontSize: 13, color: 'var(--wc-text-muted)', marginBottom: 16 }}>
+                Each group gets a unique 6-character code. Share it with friends so they can join.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input
+                  className="wc-input"
+                  placeholder="Group name, e.g. Office League"
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCreateGroup()}
+                  style={{ flex: 1 }}
+                />
+                <button className="wc-btn wc-btn-primary" disabled={groupSaving} onClick={handleCreateGroup}>
+                  {groupSaving ? '…' : '+ Create'}
+                </button>
+              </div>
+            </div>
+
+            <div className="wc-card">
+              <div className="wc-card-title">Groups ({groups.length})</div>
+              {groups.length === 0 ? (
+                <div className="wc-empty">No groups yet. Create one above.</div>
+              ) : (
+                <table className="wc-table">
+                  <thead>
+                    <tr><th>Name</th><th>Join Code</th><th>Members</th><th>Created</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {groups.map(g => (
+                      <tr key={g.id}>
+                        <td style={{ fontWeight: 600 }}>{g.name}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, letterSpacing: 4, color: 'var(--wc-gold)' }}>
+                              {g.code}
+                            </span>
+                            <button
+                              className="wc-btn wc-btn-sm wc-btn-secondary"
+                              onClick={() => handleCopyCode(g.code)}
+                            >
+                              {copiedCode === g.code ? '✓ Copied' : '📋 Copy'}
+                            </button>
+                          </div>
+                        </td>
+                        <td>{g.member_count}</td>
+                        <td style={{ fontSize: 12, color: 'var(--wc-text-muted)' }}>
+                          {new Date(g.created_at).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <button className="wc-btn wc-btn-sm wc-btn-danger" onClick={() => handleDeleteGroup(g.id)}>
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Teams ── */}
         {tab === 'teams' && (

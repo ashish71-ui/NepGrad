@@ -1,5 +1,16 @@
 from django.contrib import admin
-from .models import Team, Match, Prediction, TournamentPrediction, TournamentResult, PointsConfig
+from .models import WCGroup, Team, Match, Prediction, TournamentPrediction, TournamentResult, PointsConfig
+
+
+@admin.register(WCGroup)
+class WCGroupAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'created_by', 'member_count', 'created_at']
+    readonly_fields = ['code', 'created_at']
+    search_fields = ['name', 'code']
+
+    def member_count(self, obj):
+        return obj.members.count()
+    member_count.short_description = 'Members'
 
 
 @admin.register(Team)
