@@ -47,7 +47,6 @@ const WCAdmin: React.FC = () => {
   const [resultSaving, setResultSaving] = useState<Set<number>>(new Set());
 
   // Points config
-  const [config, setConfig] = useState<PointsConfig | null>(null);
   const [configForm, setConfigForm] = useState<Partial<PointsConfig>>({});
   const [configSaving, setConfigSaving] = useState(false);
   const [configSaved, setConfigSaved] = useState(false);
@@ -81,7 +80,6 @@ const WCAdmin: React.FC = () => {
       ]);
       setTeams(ts);
       setMatches(ms);
-      setConfig(cfg);
       setConfigForm(cfg);
       setTournResult(tr);
       if (tr) {
@@ -228,7 +226,7 @@ const WCAdmin: React.FC = () => {
     setConfigSaving(true);
     try {
       const saved = await wcService.updatePointsConfig(configForm);
-      setConfig(saved);
+      setConfigForm(saved);
       setConfigSaved(true);
       setTimeout(() => setConfigSaved(false), 3000);
     } catch {
