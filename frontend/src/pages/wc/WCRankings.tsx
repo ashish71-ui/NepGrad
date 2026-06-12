@@ -6,7 +6,6 @@ import wcService, {
   type PointsConfig,
 } from '../../services/wcService';
 import WCLayout from './WCLayout';
-import { useAuth } from '../../context/AuthContext';
 
 // ── Team picker card ─────────────────────────────────────────────────────────
 const TeamPicker: React.FC<{
@@ -49,8 +48,6 @@ const TeamPicker: React.FC<{
 
 // ── Main page ────────────────────────────────────────────────────────────────
 const WCRankings: React.FC = () => {
-  const { user } = useAuth();
-
   const [teams, setTeams] = useState<Team[]>([]);
   const [config, setConfig] = useState<PointsConfig | null>(null);
   const [existing, setExisting] = useState<TeamRankingPrediction | null>(null);
@@ -129,8 +126,6 @@ const WCRankings: React.FC = () => {
       setSaving(false);
     }
   };
-
-  const pickedIds = new Set([rank1?.id, rank2?.id, rank3?.id].filter(Boolean) as number[]);
 
   const pointsSummary = config ? [
     { label: '⚽ Each team correct in top 3', pts: config.ranking_top3_each, max: config.ranking_top3_each * 3 },
