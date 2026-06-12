@@ -382,6 +382,10 @@
   color: var(--wc-text-muted);
 }
 
+.wc-lb-header-7 {
+  grid-template-columns: 48px 1fr 80px 70px 70px 70px 70px;
+}
+
 .wc-lb-row {
   display: grid;
   grid-template-columns: 48px 1fr 80px 80px 80px 80px;
@@ -389,6 +393,10 @@
   align-items: center;
   border-bottom: 1px solid var(--wc-border);
   transition: background 0.1s;
+}
+
+.wc-lb-row-7 {
+  grid-template-columns: 48px 1fr 80px 70px 70px 70px 70px;
 }
 
 .wc-lb-row:last-child {
@@ -692,6 +700,127 @@
   font-size: 12px;
   color: var(--wc-text-muted);
   font-style: italic;
+}
+
+/* ── Team Rankings page ─────────────────────────────────────────────────── */
+.wc-rank-slots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 600px) {
+  .wc-rank-slots { grid-template-columns: 1fr; }
+}
+
+.wc-rank-slot {
+  background: var(--wc-bg-card2);
+  border: 1px solid var(--wc-border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wc-rank-slot-label {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--wc-text);
+}
+
+.wc-rank-slot-sub {
+  font-size: 11px;
+  color: var(--wc-gold);
+  font-weight: 600;
+}
+
+.wc-rank-slot-selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-text);
+}
+
+.wc-final-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.wc-final-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 80px;
+  text-align: center;
+}
+
+/* ── Group predictions panel ────────────────────────────────────────────── */
+.wc-group-preds-section {
+  border-top: 1px solid var(--wc-border);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.wc-group-preds-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--wc-border);
+  border-radius: 8px;
+  padding: 7px 12px;
+  color: var(--wc-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.wc-group-preds-toggle:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--wc-text);
+}
+
+.wc-group-preds-panel {
+  margin-top: 8px;
+}
+
+.wc-group-preds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.wc-group-preds-table th {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--wc-text-muted);
+  padding: 4px 6px 8px;
+  border-bottom: 1px solid var(--wc-border);
+}
+
+.wc-group-preds-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--wc-text);
+}
+
+.wc-group-preds-table tr:last-child td {
+  border-bottom: none;
 }
 
 /* ── Stage group header ─────────────────────────────────────────────────── */
@@ -1084,13 +1213,16 @@
 @media (max-width: 768px) {
   .wc-page { padding: 20px 16px 48px; }
   .wc-nav-links { display: none; }
-  .wc-lb-header, .wc-lb-row {
+  .wc-lb-header, .wc-lb-row,
+  .wc-lb-header-7, .wc-lb-row-7 {
     grid-template-columns: 36px 1fr 60px 60px;
   }
   .wc-lb-header > *:nth-child(5),
   .wc-lb-header > *:nth-child(6),
+  .wc-lb-header > *:nth-child(7),
   .wc-lb-row > *:nth-child(5),
-  .wc-lb-row > *:nth-child(6) { display: none; }
+  .wc-lb-row > *:nth-child(6),
+  .wc-lb-row > *:nth-child(7) { display: none; }
   .wc-stats-bar { grid-template-columns: 1fr 1fr; }
   .wc-tourn-selection { grid-template-columns: 1fr; }
   .wc-form-row { grid-template-columns: 1fr; }

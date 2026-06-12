@@ -25,6 +25,7 @@ export const WCGroupProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setLoading(false);
       return;
     }
+    setLoading(true);
     try {
       const g = await wcService.getMyGroup();
       setMyGroup(g);

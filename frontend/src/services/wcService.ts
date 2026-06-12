@@ -73,6 +73,37 @@ export interface PointsConfig {
   tournament_winner: number;
   tournament_runner_up: number;
   tournament_predictions_locked: boolean;
+  ranking_top3_each: number;
+  ranking_correct_first: number;
+  ranking_correct_second: number;
+  ranking_final_exact: number;
+  ranking_final_one_score: number;
+  ranking_final_diff_winner: number;
+  ranking_predictions_locked: boolean;
+  updated_at: string;
+}
+
+export interface TeamRankingPrediction {
+  id: number;
+  user: string;
+  rank_1: Team | null;
+  rank_2: Team | null;
+  rank_3: Team | null;
+  final_score_1: number | null;
+  final_score_2: number | null;
+  points_earned: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamRankingResult {
+  id: number;
+  rank_1: Team | null;
+  rank_2: Team | null;
+  rank_3: Team | null;
+  final_score_1: number | null;
+  final_score_2: number | null;
+  is_final: boolean;
   updated_at: string;
 }
 
@@ -85,6 +116,7 @@ export interface LeaderboardEntry {
   exact_scores: number;
   correct_winners: number;
   tournament_points: number;
+  ranking_points: number;
 }
 
 export interface WCGroup {
@@ -100,6 +132,7 @@ export interface MyStats {
   total_points: number;
   match_points: number;
   tournament_points: number;
+  ranking_points: number;
   predictions_made: number;
   matches_completed: number;
   exact_scores: number;
@@ -131,6 +164,8 @@ export const wcService = {
     wcApi.post<Match>(`/matches/${id}/set_result/`, { home_score, away_score }).then(r => r.data),
   getMatchPredictions: (id: number) =>
     wcApi.get<MatchPredictionDetail[]>(`/matches/${id}/predictions/`).then(r => r.data),
+  getGroupPredictions: (matchId: number) =>
+    wcApi.get<MatchPredictionDetail[]>(`/matches/${matchId}/group_predictions/`).then(r => r.data),
 
   // Predictions
   getMyPredictions: () => wcApi.get<Prediction[]>('/predictions/my_predictions/').then(r => r.data),
@@ -149,6 +184,25 @@ export const wcService = {
   getTournamentResult: () => wcApi.get<TournamentResult | null>('/tournament-result/').then(r => r.data),
   setTournamentResult: (winner_id: number | null, runner_up_id: number | null, is_final: boolean) =>
     wcApi.put<TournamentResult>('/tournament-result/', { winner_id, runner_up_id, is_final }).then(r => r.data),
+
+  // Team rankings
+  getRankingPrediction: () => wcApi.get<TeamRankingPrediction | null>('/ranking-prediction/').then(r => r.data),
+  saveRankingPrediction: (data: {
+    rank_1_id?: number | null;
+    rank_2_id?: number | null;
+    rank_3_id?: number | null;
+    final_score_1?: number | null;
+    final_score_2?: number | null;
+  }) => wcApi.post<TeamRankingPrediction>('/ranking-prediction/', data).then(r => r.data),
+  getRankingResult: () => wcApi.get<TeamRankingResult | null>('/ranking-result/').then(r => r.data),
+  setRankingResult: (data: {
+    rank_1_id?: number | null;
+    rank_2_id?: number | null;
+    rank_3_id?: number | null;
+    final_score_1?: number | null;
+    final_score_2?: number | null;
+    is_final?: boolean;
+  }) => wcApi.put<TeamRankingResult>('/ranking-result/', data).then(r => r.data),
 
   // Leaderboard — pass groupId to scope to a group
   getLeaderboard: (groupId?: number) =>

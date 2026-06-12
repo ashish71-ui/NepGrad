@@ -2,9 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_USE_PROXY === 'true' 
-  ? '/api' 
-  : (import.meta.env.VITE_API_URL || '/api/s');
+const API_URL = import.meta.env.VITE_USE_PROXY === 'true'
+  ? '/api'
+  : (import.meta.env.VITE_API_URL || '/api');
 
 export interface User {
   id: number;

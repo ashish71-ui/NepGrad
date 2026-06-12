@@ -8,6 +8,7 @@ import UniversityList from './pages/UniversityList';
 import UniversityForm from './pages/UniversityForm';
 import WCHome from './pages/wc/WCHome';
 import WCMatches from './pages/wc/WCMatches';
+import WCRankings from './pages/wc/WCRankings';
 import WCTournament from './pages/wc/WCTournament';
 import WCAdmin from './pages/wc/WCAdmin';
 import { WCGroupProvider } from './pages/wc/WCGroupContext';
@@ -172,6 +173,7 @@ function App() {
               <Routes>
                 <Route path="" element={<WCHome />} />
                 <Route path="matches" element={<WCGroupGuard><WCMatches /></WCGroupGuard>} />
+                <Route path="rankings" element={<WCGroupGuard><WCRankings /></WCGroupGuard>} />
                 <Route path="tournament" element={<WCGroupGuard><WCTournament /></WCGroupGuard>} />
                 <Route path="admin" element={
                   <ProtectedRoute><WCAdmin /></ProtectedRoute>

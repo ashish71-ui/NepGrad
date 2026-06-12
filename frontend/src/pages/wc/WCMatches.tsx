@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import wcService, { type Match, type Prediction } from '../../services/wcService';
+import wcService, { type Match, type Prediction, type MatchPredictionDetail } from '../../services/wcService';
 import WCLayout from './WCLayout';
 import { useAuth } from '../../context/AuthContext';
 
@@ -27,6 +27,9 @@ const WCMatches: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterStage, setFilterStage] = useState('all');
+  const [groupPredictions, setGroupPredictions] = useState<Map<number, MatchPredictionDetail[]>>(new Map());
+  const [expandedPredictions, setExpandedPredictions] = useState<Set<number>>(new Set());
+  const [loadingGroupPreds, setLoadingGroupPreds] = useState<Set<number>>(new Set());
   // Ticks every 30 s so the lock state stays current without a full reload
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -102,6 +105,26 @@ const WCMatches: React.FC = () => {
       setError(e.response?.data?.non_field_errors?.[0] || e.response?.data?.detail || 'Failed to save prediction.');
     } finally {
       setSaving(prev => { const n = new Set(prev); n.delete(matchId); return n; });
+    }
+  };
+
+  const toggleGroupPredictions = async (matchId: number) => {
+    const isOpen = expandedPredictions.has(matchId);
+    if (isOpen) {
+      setExpandedPredictions(prev => { const n = new Set(prev); n.delete(matchId); return n; });
+      return;
+    }
+    setExpandedPredictions(prev => new Set(prev).add(matchId));
+    if (!groupPredictions.has(matchId)) {
+      setLoadingGroupPreds(prev => new Set(prev).add(matchId));
+      try {
+        const preds = await wcService.getGroupPredictions(matchId);
+        setGroupPredictions(prev => new Map(prev).set(matchId, preds));
+      } catch {
+        setGroupPredictions(prev => new Map(prev).set(matchId, []));
+      } finally {
+        setLoadingGroupPreds(prev => { const n = new Set(prev); n.delete(matchId); return n; });
+      }
     }
   };
 
@@ -244,46 +267,103 @@ const WCMatches: React.FC = () => {
                             </span>
                           )
                         ) : isAuthenticated ? (
-                          <>
+                          pred ? (
                             <div className="wc-pred-inputs">
-                              <input
-                                className="wc-score-input"
-                                type="number"
-                                min={0}
-                                max={20}
-                                value={inp.home}
-                                onChange={e => handleInput(match.id, 'home', e.target.value)}
-                                placeholder="0"
-                              />
-                              <span className="wc-score-dash">–</span>
-                              <input
-                                className="wc-score-input"
-                                type="number"
-                                min={0}
-                                max={20}
-                                value={inp.away}
-                                onChange={e => handleInput(match.id, 'away', e.target.value)}
-                                placeholder="0"
-                              />
+                              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--wc-text)' }}>
+                                {pred.home_score} – {pred.away_score}
+                              </span>
+                              <span className="wc-pred-saved-chip">✓ Saved</span>
                             </div>
-                            <button
-                              className="wc-pred-save-btn"
-                              disabled={isSaving}
-                              onClick={() => handleSave(match.id)}
-                            >
-                              {isSaving ? '…' : pred ? 'Update' : 'Save'}
-                            </button>
-                            {justSaved && <span className="wc-pred-saved-chip">✓ Saved</span>}
-                            {pred && !justSaved && (
-                              <span className="wc-pred-saved-chip" style={{ opacity: 0.6 }}>✓ {pred.home_score}–{pred.away_score}</span>
-                            )}
-                          </>
+                          ) : (
+                            <>
+                              <div className="wc-pred-inputs">
+                                <input
+                                  className="wc-score-input"
+                                  type="number"
+                                  min={0}
+                                  max={20}
+                                  value={inp.home}
+                                  onChange={e => handleInput(match.id, 'home', e.target.value)}
+                                  placeholder="0"
+                                />
+                                <span className="wc-score-dash">–</span>
+                                <input
+                                  className="wc-score-input"
+                                  type="number"
+                                  min={0}
+                                  max={20}
+                                  value={inp.away}
+                                  onChange={e => handleInput(match.id, 'away', e.target.value)}
+                                  placeholder="0"
+                                />
+                              </div>
+                              <button
+                                className="wc-pred-save-btn"
+                                disabled={isSaving}
+                                onClick={() => handleSave(match.id)}
+                              >
+                                {isSaving ? '…' : 'Save'}
+                              </button>
+                              {justSaved && <span className="wc-pred-saved-chip">✓ Saved</span>}
+                            </>
+                          )
                         ) : (
                           <span className="wc-pred-locked-msg">
                             <Link to="/login" style={{ color: 'var(--wc-gold)' }}>Sign in</Link> to predict
                           </span>
                         )}
                       </div>
+
+                      {/* Group predictions toggle — visible to all authenticated users */}
+                      {isAuthenticated && (
+                        <div className="wc-group-preds-section">
+                          <button
+                            className="wc-group-preds-toggle"
+                            onClick={() => toggleGroupPredictions(match.id)}
+                          >
+                            <span>👥 Group Predictions</span>
+                            <span style={{ fontSize: 11 }}>{expandedPredictions.has(match.id) ? '▲ Hide' : '▼ Show'}</span>
+                          </button>
+
+                          {expandedPredictions.has(match.id) && (
+                            <div className="wc-group-preds-panel">
+                              {loadingGroupPreds.has(match.id) ? (
+                                <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--wc-text-muted)', fontSize: 13 }}>Loading…</div>
+                              ) : (groupPredictions.get(match.id) || []).length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--wc-text-muted)', fontSize: 13 }}>No group members have predicted this match yet.</div>
+                              ) : (
+                                <table className="wc-group-preds-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Player</th>
+                                      <th style={{ textAlign: 'center' }}>Prediction</th>
+                                      {match.is_completed && <th style={{ textAlign: 'center' }}>Points</th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(groupPredictions.get(match.id) || []).map(gp => (
+                                      <tr key={gp.id}>
+                                        <td>{gp.username}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                                          {gp.home_score} – {gp.away_score}
+                                        </td>
+                                        {match.is_completed && (
+                                          <td style={{ textAlign: 'center' }}>
+                                            {gp.points_earned !== null
+                                              ? <span className="wc-pred-points-chip">+{gp.points_earned}</span>
+                                              : <span style={{ color: 'var(--wc-text-muted)', fontSize: 12 }}>—</span>
+                                            }
+                                          </td>
+                                        )}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

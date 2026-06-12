@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import wcService, {
   type Team, type Match, type PointsConfig, type TournamentResult, type WCGroup,
+  type TeamRankingResult,
 } from '../../services/wcService';
 import WCLayout from './WCLayout';
 import { useAuth } from '../../context/AuthContext';
 
-type AdminTab = 'groups' | 'teams' | 'matches' | 'results' | 'config' | 'tournament';
+type AdminTab = 'groups' | 'teams' | 'matches' | 'results' | 'config' | 'tournament' | 'rankings';
 
 const STAGES = [
   { value: 'group', label: 'Group Stage' },
@@ -65,6 +66,12 @@ const WCAdmin: React.FC = () => {
   const [tournSaving, setTournSaving] = useState(false);
   const [tournSaved, setTournSaved] = useState(false);
 
+  // Team ranking result
+  const [rankResult, setRankResult] = useState<TeamRankingResult | null>(null);
+  const [rankForm, setRankForm] = useState({ rank_1_id: '', rank_2_id: '', rank_3_id: '', final_score_1: '', final_score_2: '', is_final: false });
+  const [rankSaving, setRankSaving] = useState(false);
+  const [rankSaved, setRankSaved] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -78,12 +85,13 @@ const WCAdmin: React.FC = () => {
 
   const loadAll = async () => {
     try {
-      const [ts, ms, cfg, tr, gs] = await Promise.all([
+      const [ts, ms, cfg, tr, gs, rr] = await Promise.all([
         wcService.getTeams(),
         wcService.getMatches(),
         wcService.getPointsConfig(),
         wcService.getTournamentResult(),
         wcService.getGroups(),
+        wcService.getRankingResult(),
       ]);
       setTeams(ts);
       setMatches(ms);
@@ -94,6 +102,17 @@ const WCAdmin: React.FC = () => {
         setTournWinnerId(String(tr.winner?.id ?? ''));
         setTournRunnerUpId(String(tr.runner_up?.id ?? ''));
         setTournIsFinal(tr.is_final);
+      }
+      setRankResult(rr);
+      if (rr) {
+        setRankForm({
+          rank_1_id: String(rr.rank_1?.id ?? ''),
+          rank_2_id: String(rr.rank_2?.id ?? ''),
+          rank_3_id: String(rr.rank_3?.id ?? ''),
+          final_score_1: rr.final_score_1 !== null ? String(rr.final_score_1) : '',
+          final_score_2: rr.final_score_2 !== null ? String(rr.final_score_2) : '',
+          is_final: rr.is_final,
+        });
       }
       // Initialize result inputs
       const ri = new Map<number, { home: string; away: string }>();
@@ -276,6 +295,29 @@ const WCAdmin: React.FC = () => {
     }
   };
 
+  // ── Ranking result ───────────────────────────────────────────────────────
+  const handleRankSave = async () => {
+    setRankSaving(true);
+    try {
+      const payload = {
+        rank_1_id: rankForm.rank_1_id ? parseInt(rankForm.rank_1_id) : null,
+        rank_2_id: rankForm.rank_2_id ? parseInt(rankForm.rank_2_id) : null,
+        rank_3_id: rankForm.rank_3_id ? parseInt(rankForm.rank_3_id) : null,
+        final_score_1: rankForm.final_score_1 !== '' ? parseInt(rankForm.final_score_1) : null,
+        final_score_2: rankForm.final_score_2 !== '' ? parseInt(rankForm.final_score_2) : null,
+        is_final: rankForm.is_final,
+      };
+      const saved = await wcService.setRankingResult(payload);
+      setRankResult(saved);
+      setRankSaved(true);
+      setTimeout(() => setRankSaved(false), 3000);
+    } catch {
+      setError('Failed to save ranking result.');
+    } finally {
+      setRankSaving(false);
+    }
+  };
+
   // ── Tournament result ────────────────────────────────────────────────────
   const handleTournSave = async () => {
     setTournSaving(true);
@@ -319,9 +361,9 @@ const WCAdmin: React.FC = () => {
         )}
 
         <div className="wc-admin-tabs">
-          {(['groups', 'teams', 'matches', 'results', 'tournament', 'config'] as AdminTab[]).map(t => (
+          {(['groups', 'teams', 'matches', 'results', 'rankings', 'tournament', 'config'] as AdminTab[]).map(t => (
             <button key={t} className={`wc-admin-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              {{ groups: '👥 Groups', teams: '🌍 Teams', matches: '⚽ Matches', results: '📊 Set Results', tournament: '🏆 Tournament', config: '⭐ Points Config' }[t]}
+              {{ groups: '👥 Groups', teams: '🌍 Teams', matches: '⚽ Matches', results: '📊 Results', rankings: '🏅 Rankings', tournament: '🏆 Tournament', config: '⭐ Points Config' }[t]}
             </button>
           ))}
         </div>
@@ -651,6 +693,71 @@ const WCAdmin: React.FC = () => {
           </div>
         )}
 
+        {/* ── Team Rankings Result ── */}
+        {tab === 'rankings' && (
+          <div className="wc-card">
+            <div className="wc-card-title">🏅 Set Team Ranking Result</div>
+            <p style={{ fontSize: 13, color: 'var(--wc-text-muted)', marginBottom: 20 }}>
+              Set the actual top 3 teams and final match score. Mark as "Final" to award ranking points.
+            </p>
+            <div className="wc-form-row" style={{ marginBottom: 16 }}>
+              {(['rank_1_id', 'rank_2_id', 'rank_3_id'] as const).map((key, i) => (
+                <div key={key} className="wc-form-group">
+                  <label className="wc-label">{['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place'][i]}</label>
+                  <select className="wc-select" style={{ width: '100%' }} value={rankForm[key]} onChange={e => setRankForm(p => ({ ...p, [key]: e.target.value }))}>
+                    <option value="">— Select team —</option>
+                    {teams.map(t => <option key={t.id} value={t.id}>{t.flag} {t.name}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--wc-text-muted)', marginBottom: 10 }}>
+              Final Match Score <span style={{ fontWeight: 400 }}>(1st place goals – 2nd place goals)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--wc-text-muted)', marginBottom: 4 }}>
+                  {rankForm.rank_1_id ? teams.find(t => String(t.id) === rankForm.rank_1_id)?.name : '1st Place'}
+                </div>
+                <input className="wc-result-input" type="number" min={0} max={20} placeholder="0"
+                  value={rankForm.final_score_1}
+                  onChange={e => setRankForm(p => ({ ...p, final_score_1: e.target.value }))} />
+              </div>
+              <span style={{ color: 'var(--wc-text-muted)', fontWeight: 700, fontSize: 18 }}>–</span>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--wc-text-muted)', marginBottom: 4 }}>
+                  {rankForm.rank_2_id ? teams.find(t => String(t.id) === rankForm.rank_2_id)?.name : '2nd Place'}
+                </div>
+                <input className="wc-result-input" type="number" min={0} max={20} placeholder="0"
+                  value={rankForm.final_score_2}
+                  onChange={e => setRankForm(p => ({ ...p, final_score_2: e.target.value }))} />
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: 'var(--wc-text)', fontSize: 14, marginBottom: 20 }}>
+              <input type="checkbox" checked={rankForm.is_final} onChange={e => setRankForm(p => ({ ...p, is_final: e.target.checked }))}
+                style={{ width: 16, height: 16, accentColor: 'var(--wc-gold)', cursor: 'pointer' }} />
+              Mark as final — award ranking prediction points to all players
+            </label>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button className="wc-btn wc-btn-primary" disabled={rankSaving} onClick={handleRankSave}>
+                {rankSaving ? '…Saving' : 'Save Ranking Result'}
+              </button>
+              {rankSaved && <span className="wc-alert wc-alert-success" style={{ padding: '6px 12px', marginBottom: 0 }}>✓ Saved & points calculated</span>}
+            </div>
+            {rankResult && (
+              <div style={{ marginTop: 20, padding: 14, background: 'rgba(255,255,255,0.04)', borderRadius: 8, fontSize: 13, color: 'var(--wc-text-muted)' }}>
+                <strong style={{ color: 'var(--wc-text)' }}>Current:</strong>{' '}
+                {[rankResult.rank_1, rankResult.rank_2, rankResult.rank_3].map((t, i) =>
+                  t ? `${['🥇','🥈','🥉'][i]} ${t.flag} ${t.name}` : null
+                ).filter(Boolean).join(' · ')}
+                {rankResult.final_score_1 !== null && rankResult.final_score_2 !== null &&
+                  ` · Final: ${rankResult.final_score_1}–${rankResult.final_score_2}`}
+                {' · '}{rankResult.is_final ? '✅ Final (points awarded)' : '⏳ Not final yet'}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Tournament Result ── */}
         {tab === 'tournament' && (
           <div className="wc-card">
@@ -712,39 +819,71 @@ const WCAdmin: React.FC = () => {
             <p style={{ fontSize: 13, color: 'var(--wc-text-muted)', marginBottom: 20 }}>
               Configure how many points each correct prediction earns. Saving recalculates all existing points.
             </p>
-            <div className="wc-config-grid">
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--wc-text-muted)', marginBottom: 12 }}>Match Predictions</div>
+            <div className="wc-config-grid" style={{ marginBottom: 24 }}>
               {[
                 { key: 'exact_score', label: 'Exact Score', icon: '🎯', hint: 'e.g. correctly predicted 2–1' },
                 { key: 'correct_winner', label: 'Correct Winner', icon: '✅', hint: 'right team wins (or draw)' },
                 { key: 'correct_goal_difference', label: 'Goal Difference', icon: '↔', hint: 'right margin, wrong exact' },
+              ].map(({ key, label, icon, hint }) => (
+                <div key={key} className="wc-config-item">
+                  <div className="wc-config-item-label"><span>{icon}</span>{label}</div>
+                  <input className="wc-input" type="number" min={0} max={100}
+                    value={(configForm as any)[key] ?? ''}
+                    onChange={e => setConfigForm(p => ({ ...p, [key]: parseInt(e.target.value) || 0 }))} />
+                  <div className="wc-config-item-hint">{hint}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--wc-text-muted)', marginBottom: 12 }}>Tournament Prediction</div>
+            <div className="wc-config-grid" style={{ marginBottom: 24 }}>
+              {[
                 { key: 'tournament_winner', label: 'Tournament Winner', icon: '🏆', hint: 'picks the champion' },
                 { key: 'tournament_runner_up', label: 'Runner-up', icon: '🥈', hint: 'picks the finalist' },
               ].map(({ key, label, icon, hint }) => (
                 <div key={key} className="wc-config-item">
-                  <div className="wc-config-item-label">
-                    <span>{icon}</span>{label}
-                  </div>
-                  <input
-                    className="wc-input"
-                    type="number"
-                    min={0}
-                    max={100}
+                  <div className="wc-config-item-label"><span>{icon}</span>{label}</div>
+                  <input className="wc-input" type="number" min={0} max={100}
                     value={(configForm as any)[key] ?? ''}
-                    onChange={e => setConfigForm(p => ({ ...p, [key]: parseInt(e.target.value) || 0 }))}
-                  />
+                    onChange={e => setConfigForm(p => ({ ...p, [key]: parseInt(e.target.value) || 0 }))} />
                   <div className="wc-config-item-hint">{hint}</div>
                 </div>
               ))}
               <div className="wc-config-item" style={{ gridColumn: '1 / -1' }}>
                 <div className="wc-config-item-label">🔒 Lock Tournament Predictions</div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: 'var(--wc-text)', fontSize: 14 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!configForm.tournament_predictions_locked}
+                  <input type="checkbox" checked={!!configForm.tournament_predictions_locked}
                     onChange={e => setConfigForm(p => ({ ...p, tournament_predictions_locked: e.target.checked }))}
-                    style={{ width: 16, height: 16, accentColor: 'var(--wc-gold)', cursor: 'pointer' }}
-                  />
+                    style={{ width: 16, height: 16, accentColor: 'var(--wc-gold)', cursor: 'pointer' }} />
                   Prevent users from changing their tournament winner / runner-up prediction
+                </label>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--wc-text-muted)', marginBottom: 12 }}>Team Rankings (Max +35)</div>
+            <div className="wc-config-grid" style={{ marginBottom: 12 }}>
+              {[
+                { key: 'ranking_top3_each', label: 'Top 3 (each)', icon: '🏅', hint: '+pts per correct team in top 3 (any order)' },
+                { key: 'ranking_correct_first', label: 'Correct 1st', icon: '🥇', hint: 'bonus for exact 1st place' },
+                { key: 'ranking_correct_second', label: 'Correct 2nd', icon: '🥈', hint: 'bonus for exact 2nd place' },
+                { key: 'ranking_final_exact', label: 'Final: Exact Score', icon: '🎯', hint: 'requires correct finalists' },
+                { key: 'ranking_final_one_score', label: 'Final: One Team', icon: '🔢', hint: 'one team score correct in final' },
+                { key: 'ranking_final_diff_winner', label: 'Final: Diff+Winner', icon: '↔', hint: 'correct goal diff & winner in final' },
+              ].map(({ key, label, icon, hint }) => (
+                <div key={key} className="wc-config-item">
+                  <div className="wc-config-item-label"><span>{icon}</span>{label}</div>
+                  <input className="wc-input" type="number" min={0} max={100}
+                    value={(configForm as any)[key] ?? ''}
+                    onChange={e => setConfigForm(p => ({ ...p, [key]: parseInt(e.target.value) || 0 }))} />
+                  <div className="wc-config-item-hint">{hint}</div>
+                </div>
+              ))}
+              <div className="wc-config-item" style={{ gridColumn: '1 / -1' }}>
+                <div className="wc-config-item-label">🔒 Lock Rankings Predictions</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: 'var(--wc-text)', fontSize: 14 }}>
+                  <input type="checkbox" checked={!!configForm.ranking_predictions_locked}
+                    onChange={e => setConfigForm(p => ({ ...p, ranking_predictions_locked: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: 'var(--wc-gold)', cursor: 'pointer' }} />
+                  Prevent users from changing their team ranking prediction
                 </label>
               </div>
             </div>

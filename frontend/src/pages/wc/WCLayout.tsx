@@ -6,6 +6,7 @@ import './wc.css';
 const NAV_LINKS = [
   { to: '/wc', label: '🏆 Leaderboard', exact: true },
   { to: '/wc/matches', label: '⚽ Matches' },
+  { to: '/wc/rankings', label: '🏅 Rankings' },
   { to: '/wc/tournament', label: '🌍 Tournament' },
 ];
 

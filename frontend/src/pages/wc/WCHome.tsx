@@ -227,9 +227,14 @@ const WCHome: React.FC = () => {
               <div className="wc-stat-sub">{myStats.matches_completed} completed</div>
             </div>
             <div className="wc-stat-card">
-              <div className="wc-stat-label">Tourn. Points</div>
+              <div className="wc-stat-label">Tourn. Pts</div>
               <div className="wc-stat-value">{myStats.tournament_points}</div>
               <div className="wc-stat-sub">winner + runner-up</div>
+            </div>
+            <div className="wc-stat-card">
+              <div className="wc-stat-label">Rankings Pts</div>
+              <div className="wc-stat-value">{myStats.ranking_points ?? 0}</div>
+              <div className="wc-stat-sub">top 3 + final</div>
             </div>
           </div>
         )}
@@ -247,17 +252,18 @@ const WCHome: React.FC = () => {
             <div className="wc-empty">No predictions yet. <Link to="/wc/matches" style={{ color: 'var(--wc-gold)' }}>Be first →</Link></div>
           ) : (
             <>
-              <div className="wc-lb-header">
+              <div className="wc-lb-header wc-lb-header-7">
                 <div>#</div>
                 <div>Player</div>
                 <div style={{ textAlign: 'center' }}>Points</div>
                 <div style={{ textAlign: 'center' }}>Preds</div>
                 <div style={{ textAlign: 'center' }}>Exact</div>
                 <div style={{ textAlign: 'center' }}>Tourn.</div>
+                <div style={{ textAlign: 'center' }}>Rank.</div>
               </div>
               <div className="wc-leaderboard">
                 {leaderboard.map(entry => (
-                  <div key={entry.user_id} className={`wc-lb-row ${entry.username === user?.username ? 'is-me' : ''}`}>
+                  <div key={entry.user_id} className={`wc-lb-row wc-lb-row-7 ${entry.username === user?.username ? 'is-me' : ''}`}>
                     <div className={`wc-lb-rank ${entry.rank <= 3 ? `rank-${entry.rank}` : ''}`}>
                       {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
                     </div>
@@ -269,6 +275,7 @@ const WCHome: React.FC = () => {
                     <div className="wc-lb-cell">{entry.predictions_made}</div>
                     <div className="wc-lb-cell">{entry.exact_scores}</div>
                     <div className="wc-lb-cell">{entry.tournament_points}</div>
+                    <div className="wc-lb-cell">{entry.ranking_points ?? 0}</div>
                   </div>
                 ))}
               </div>

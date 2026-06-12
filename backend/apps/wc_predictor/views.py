@@ -8,13 +8,18 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
 
-from .models import WCGroup, Team, Match, Prediction, TournamentPrediction, TournamentResult, PointsConfig
+from .models import (
+    WCGroup, Team, Match, Prediction,
+    TournamentPrediction, TournamentResult, PointsConfig,
+    TeamRankingPrediction, TeamRankingResult,
+)
 from .serializers import (
     WCGroupSerializer,
     TeamSerializer, MatchSerializer, PredictionSerializer,
     TournamentPredictionSerializer, TournamentResultSerializer,
     PointsConfigSerializer, LeaderboardEntrySerializer,
     MatchPredictionDetailSerializer,
+    TeamRankingPredictionSerializer, TeamRankingResultSerializer,
 )
 
 
@@ -47,6 +52,16 @@ def recalculate_tournament_predictions():
             pts += config.tournament_runner_up
         tp.points_earned = pts
         tp.save(update_fields=['points_earned'])
+
+
+def recalculate_ranking_predictions():
+    """Recalculate team ranking prediction points."""
+    config = get_or_create_config()
+    result = TeamRankingResult.objects.filter(is_final=True).first()
+    for pred in TeamRankingPrediction.objects.all():
+        pts = pred.calculate_points(config, result)
+        pred.points_earned = pts
+        pred.save(update_fields=['points_earned'])
 
 
 class TeamViewSet(viewsets.ModelViewSet):
@@ -95,6 +110,22 @@ class MatchViewSet(viewsets.ModelViewSet):
     def predictions(self, request, pk=None):
         match = self.get_object()
         preds = match.predictions.select_related('user').all()
+        return Response(MatchPredictionDetailSerializer(preds, many=True).data)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def group_predictions(self, request, pk=None):
+        """Return all group members' predictions for this match (always visible to group members)."""
+        match = self.get_object()
+
+        if request.user.is_staff:
+            preds = match.predictions.select_related('user').all()
+        else:
+            group = request.user.wc_groups.first()
+            if not group:
+                return Response([])
+            member_ids = group.members.values_list('id', flat=True)
+            preds = match.predictions.filter(user__id__in=member_ids).select_related('user')
+
         return Response(MatchPredictionDetailSerializer(preds, many=True).data)
 
 
@@ -203,6 +234,7 @@ def leaderboard(request):
             'exact_scores': entry['exact_scores'],
             'correct_winners': 0,
             'tournament_points': 0,
+            'ranking_points': 0,
         }
 
     tp_qs = TournamentPrediction.objects.filter(points_earned__isnull=False).select_related('user')
@@ -220,9 +252,30 @@ def leaderboard(request):
                 'exact_scores': 0,
                 'correct_winners': 0,
                 'tournament_points': 0,
+                'ranking_points': 0,
             }
         data[uid]['total_points'] += tp.points_earned or 0
         data[uid]['tournament_points'] = tp.points_earned or 0
+
+    rp_qs = TeamRankingPrediction.objects.filter(points_earned__isnull=False).select_related('user')
+    if member_ids is not None:
+        rp_qs = rp_qs.filter(user__id__in=member_ids)
+
+    for rp in rp_qs:
+        uid = rp.user.id
+        if uid not in data:
+            data[uid] = {
+                'user_id': uid,
+                'username': rp.user.username,
+                'total_points': 0,
+                'predictions_made': 0,
+                'exact_scores': 0,
+                'correct_winners': 0,
+                'tournament_points': 0,
+                'ranking_points': 0,
+            }
+        data[uid]['total_points'] += rp.points_earned or 0
+        data[uid]['ranking_points'] = rp.points_earned or 0
 
     # Also ensure every group member appears (even with 0 predictions)
     if member_ids is not None:
@@ -238,6 +291,7 @@ def leaderboard(request):
                         'exact_scores': 0,
                         'correct_winners': 0,
                         'tournament_points': 0,
+                        'ranking_points': 0,
                     }
                 except User.DoesNotExist:
                     pass
@@ -268,6 +322,7 @@ def points_config(request):
         for match in Match.objects.filter(is_completed=True):
             recalculate_match_predictions(match)
         recalculate_tournament_predictions()
+        recalculate_ranking_predictions()
         return Response(serializer.data)
     return Response(serializer.errors, status=400)
 
@@ -285,12 +340,19 @@ def my_stats(request):
     except TournamentPrediction.DoesNotExist:
         tournament_pts = 0
 
+    try:
+        rp = TeamRankingPrediction.objects.get(user=user)
+        ranking_pts = rp.points_earned or 0
+    except TeamRankingPrediction.DoesNotExist:
+        ranking_pts = 0
+
     config = get_or_create_config()
 
     return Response({
-        'total_points': total_match_pts + tournament_pts,
+        'total_points': total_match_pts + tournament_pts + ranking_pts,
         'match_points': total_match_pts,
         'tournament_points': tournament_pts,
+        'ranking_points': ranking_pts,
         'predictions_made': Prediction.objects.filter(user=user).count(),
         'matches_completed': preds.count(),
         'exact_scores': preds.filter(
@@ -301,37 +363,81 @@ def my_stats(request):
     })
 
 
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def ranking_prediction(request):
+    config = get_or_create_config()
+
+    if request.method == 'GET':
+        try:
+            rp = TeamRankingPrediction.objects.get(user=request.user)
+            return Response(TeamRankingPredictionSerializer(rp).data)
+        except TeamRankingPrediction.DoesNotExist:
+            return Response(None)
+
+    if config.ranking_predictions_locked:
+        return Response({'error': 'Team ranking predictions are locked.'}, status=400)
+
+    serializer = TeamRankingPredictionSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        prediction = serializer.save()
+        return Response(TeamRankingPredictionSerializer(prediction).data)
+    return Response(serializer.errors, status=400)
+
+
+@api_view(['GET', 'PUT'])
+def ranking_result(request):
+    if request.method == 'GET':
+        result = TeamRankingResult.objects.first()
+        if not result:
+            return Response(None)
+        return Response(TeamRankingResultSerializer(result).data)
+
+    if not request.user.is_authenticated:
+        return Response({'error': 'Authentication required.'}, status=401)
+    if not request.user.is_staff:
+        return Response({'error': 'Admin access required.'}, status=403)
+
+    result, _ = TeamRankingResult.objects.get_or_create(pk=1)
+    serializer = TeamRankingResultSerializer(result, data=request.data, partial=True)
+    if serializer.is_valid():
+        saved = serializer.save()
+        if saved.is_final:
+            recalculate_ranking_predictions()
+        return Response(TeamRankingResultSerializer(saved).data)
+    return Response(serializer.errors, status=400)
+
+
 # ── WC Group views ────────────────────────────────────────────────────────
 
 class WCGroupViewSet(viewsets.ModelViewSet):
-    """Admin-only: create, list, delete groups."""
+    """Admin-only CRUD; join and mine are open to authenticated users."""
     queryset = WCGroup.objects.prefetch_related('members').all()
     serializer_class = WCGroupSerializer
-    permission_classes = [IsAdminUser]
+
+    def get_permissions(self):
+        if self.action in ['join', 'mine']:
+            return [IsAuthenticated()]
+        return [IsAdminUser()]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    @action(detail=False, methods=['post'])
+    def join(self, request):
+        code = (request.data.get('code') or '').strip().upper()
+        if not code:
+            return Response({'error': 'Join code is required.'}, status=400)
+        try:
+            group = WCGroup.objects.get(code=code)
+        except WCGroup.DoesNotExist:
+            return Response({'error': 'Invalid code. No group found.'}, status=404)
+        group.members.add(request.user)
+        return Response(WCGroupSerializer(group).data)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def join_group(request):
-    code = (request.data.get('code') or '').strip().upper()
-    if not code:
-        return Response({'error': 'Join code is required.'}, status=400)
-    try:
-        group = WCGroup.objects.get(code=code)
-    except WCGroup.DoesNotExist:
-        return Response({'error': 'Invalid code. No group found.'}, status=404)
-
-    group.members.add(request.user)
-    return Response(WCGroupSerializer(group).data)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def my_group(request):
-    group = request.user.wc_groups.order_by('created_at').first()
-    if not group:
-        return Response(None)
-    return Response(WCGroupSerializer(group).data)
+    @action(detail=False, methods=['get'])
+    def mine(self, request):
+        group = request.user.wc_groups.order_by('created_at').first()
+        if not group:
+            return Response(None)
+        return Response(WCGroupSerializer(group).data)

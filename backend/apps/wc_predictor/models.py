@@ -175,6 +175,14 @@ class PointsConfig(models.Model):
     tournament_winner = models.IntegerField(default=10, help_text='Points for predicting tournament winner')
     tournament_runner_up = models.IntegerField(default=5, help_text='Points for predicting runner-up')
     tournament_predictions_locked = models.BooleanField(default=False, help_text='Lock tournament winner/runner-up predictions')
+    # Team Rankings points
+    ranking_top3_each = models.IntegerField(default=5, help_text='Points for each team correctly placed in top 3 (any position)')
+    ranking_correct_first = models.IntegerField(default=15, help_text='Bonus: correct 1st place team')
+    ranking_correct_second = models.IntegerField(default=5, help_text='Bonus: correct 2nd place team')
+    ranking_final_exact = models.IntegerField(default=10, help_text='Final match: exact score (requires correct finalists)')
+    ranking_final_one_score = models.IntegerField(default=5, help_text='Final match: one team score correct')
+    ranking_final_diff_winner = models.IntegerField(default=3, help_text='Final match: correct goal diff & winner')
+    ranking_predictions_locked = models.BooleanField(default=False, help_text='Lock team ranking predictions')
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
 
@@ -185,3 +193,88 @@ class PointsConfig(models.Model):
         return (f"Config: exact={self.exact_score}, winner={self.correct_winner}, "
                 f"diff={self.correct_goal_difference}, tourn_winner={self.tournament_winner}, "
                 f"tourn_ru={self.tournament_runner_up}")
+
+
+class TeamRankingPrediction(models.Model):
+    """User's prediction for the top 3 teams and the final match score."""
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='wc_ranking_prediction',
+    )
+    rank_1 = models.ForeignKey(Team, related_name='ranking_rank1_preds', null=True, blank=True, on_delete=models.SET_NULL)
+    rank_2 = models.ForeignKey(Team, related_name='ranking_rank2_preds', null=True, blank=True, on_delete=models.SET_NULL)
+    rank_3 = models.ForeignKey(Team, related_name='ranking_rank3_preds', null=True, blank=True, on_delete=models.SET_NULL)
+    # Final match score — rank_1 goals vs rank_2 goals (only scored if both finalists correct)
+    final_score_1 = models.IntegerField(null=True, blank=True)
+    final_score_2 = models.IntegerField(null=True, blank=True)
+    points_earned = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username}: {self.rank_1}/{self.rank_2}/{self.rank_3}"
+
+    def calculate_points(self, config, result):
+        if not result or not result.is_final:
+            return None
+
+        pts = 0
+        actual_top3 = {r for r in [result.rank_1_id, result.rank_2_id, result.rank_3_id] if r}
+
+        for team_id in [self.rank_1_id, self.rank_2_id, self.rank_3_id]:
+            if team_id and team_id in actual_top3:
+                pts += config.ranking_top3_each
+
+        if self.rank_1_id and self.rank_1_id == result.rank_1_id:
+            pts += config.ranking_correct_first
+
+        if self.rank_2_id and self.rank_2_id == result.rank_2_id:
+            pts += config.ranking_correct_second
+
+        # Final score — only if both finalists correctly identified (any order)
+        pred_finalists = {self.rank_1_id, self.rank_2_id}
+        actual_finalists = {result.rank_1_id, result.rank_2_id}
+        finalists_correct = (
+            None not in pred_finalists
+            and pred_finalists == actual_finalists
+            and self.final_score_1 is not None
+            and self.final_score_2 is not None
+            and result.final_score_1 is not None
+            and result.final_score_2 is not None
+        )
+
+        if finalists_correct:
+            # Align prediction to actual champion/runner-up order
+            if self.rank_1_id == result.rank_1_id:
+                p1, p2 = self.final_score_1, self.final_score_2
+            else:
+                p1, p2 = self.final_score_2, self.final_score_1
+
+            a1, a2 = result.final_score_1, result.final_score_2
+
+            if p1 == a1 and p2 == a2:
+                pts += config.ranking_final_exact
+            else:
+                if p1 == a1 or p2 == a2:
+                    pts += config.ranking_final_one_score
+                if (p1 - p2) == (a1 - a2):
+                    pts += config.ranking_final_diff_winner
+
+        return pts
+
+
+class TeamRankingResult(models.Model):
+    """Admin-set actual top 3 teams and final match score."""
+    rank_1 = models.ForeignKey(Team, related_name='actual_ranking_rank1', null=True, blank=True, on_delete=models.SET_NULL)
+    rank_2 = models.ForeignKey(Team, related_name='actual_ranking_rank2', null=True, blank=True, on_delete=models.SET_NULL)
+    rank_3 = models.ForeignKey(Team, related_name='actual_ranking_rank3', null=True, blank=True, on_delete=models.SET_NULL)
+    final_score_1 = models.IntegerField(null=True, blank=True, help_text="Champion's goals in the final")
+    final_score_2 = models.IntegerField(null=True, blank=True, help_text="Runner-up's goals in the final")
+    is_final = models.BooleanField(default=False, help_text='Mark true to trigger points calculation')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Team Ranking Result'
+
+    def __str__(self):
+        return f"Rankings: {self.rank_1} / {self.rank_2} / {self.rank_3}"
