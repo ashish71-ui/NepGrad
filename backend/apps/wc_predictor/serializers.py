@@ -37,6 +37,7 @@ class MatchSerializer(serializers.ModelSerializer):
     away_team_id = serializers.PrimaryKeyRelatedField(
         queryset=Team.objects.all(), source='away_team', write_only=True
     )
+    penalty_winner = TeamSerializer(read_only=True)
     stage_display = serializers.CharField(source='get_stage_display', read_only=True)
     is_locked = serializers.BooleanField(read_only=True)
     result_label = serializers.CharField(source='get_result_label', read_only=True)
@@ -46,7 +47,7 @@ class MatchSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'home_team', 'away_team', 'home_team_id', 'away_team_id',
             'match_time', 'stage', 'stage_display', 'venue', 'match_number',
-            'home_score', 'away_score', 'is_completed', 'is_locked',
+            'home_score', 'away_score', 'penalty_winner', 'is_completed', 'is_locked',
             'result_label', 'created_at',
         ]
 
@@ -57,13 +58,19 @@ class PredictionSerializer(serializers.ModelSerializer):
     match_id = serializers.PrimaryKeyRelatedField(
         queryset=Match.objects.all(), source='match', write_only=True
     )
+    penalty_winner = TeamSerializer(read_only=True)
+    penalty_winner_id = serializers.PrimaryKeyRelatedField(
+        queryset=Team.objects.all(), source='penalty_winner', write_only=True,
+        allow_null=True, required=False,
+    )
 
     class Meta:
         model = Prediction
         fields = [
             'id', 'user', 'match', 'match_id',
-            'home_score', 'away_score', 'points_earned',
-            'created_at', 'updated_at',
+            'home_score', 'away_score',
+            'penalty_winner', 'penalty_winner_id',
+            'points_earned', 'created_at', 'updated_at',
         ]
         read_only_fields = ['points_earned']
 
@@ -83,6 +90,7 @@ class PredictionSerializer(serializers.ModelSerializer):
             defaults={
                 'home_score': validated_data['home_score'],
                 'away_score': validated_data['away_score'],
+                'penalty_winner': validated_data.get('penalty_winner'),
             }
         )
         return prediction
@@ -152,6 +160,7 @@ class PointsConfigSerializer(serializers.ModelSerializer):
         model = PointsConfig
         fields = [
             'id', 'exact_score', 'correct_winner', 'correct_goal_difference',
+            'ko_exact_score', 'ko_correct_winner', 'ko_correct_goal_difference', 'ko_correct_penalty_winner',
             'tournament_winner', 'tournament_runner_up',
             'tournament_predictions_locked',
             'ranking_top3_each', 'ranking_correct_first', 'ranking_correct_second',
@@ -249,7 +258,8 @@ class LeaderboardEntrySerializer(serializers.Serializer):
 class MatchPredictionDetailSerializer(serializers.ModelSerializer):
     """For admin: shows all predictions on a match."""
     username = serializers.CharField(source='user.username', read_only=True)
+    penalty_winner = TeamSerializer(read_only=True)
 
     class Meta:
         model = Prediction
-        fields = ['id', 'username', 'home_score', 'away_score', 'points_earned']
+        fields = ['id', 'username', 'home_score', 'away_score', 'penalty_winner', 'points_earned']

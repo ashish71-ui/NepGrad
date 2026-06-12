@@ -81,10 +81,13 @@ class MatchViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
+        if self.action == 'group_predictions':
+            return [IsAuthenticated()]
         return [IsAdminUser()]
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def set_result(self, request, pk=None):
+        from .models import KNOCKOUT_STAGES
         match = self.get_object()
         home_score = request.data.get('home_score')
         away_score = request.data.get('away_score')
@@ -100,6 +103,17 @@ class MatchViewSet(viewsets.ModelViewSet):
 
         if match.home_score < 0 or match.away_score < 0:
             return Response({'error': 'Scores cannot be negative.'}, status=400)
+
+        # Penalty winner — only valid for knockout draws
+        penalty_winner_id = request.data.get('penalty_winner_id')
+        if penalty_winner_id and match.stage in KNOCKOUT_STAGES and match.home_score == match.away_score:
+            from .models import Team as TeamModel
+            try:
+                match.penalty_winner = TeamModel.objects.get(pk=int(penalty_winner_id))
+            except (TeamModel.DoesNotExist, ValueError):
+                return Response({'error': 'Invalid penalty_winner_id.'}, status=400)
+        else:
+            match.penalty_winner = None
 
         match.is_completed = True
         match.save()

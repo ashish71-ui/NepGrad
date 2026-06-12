@@ -50,7 +50,7 @@ const WCAdmin: React.FC = () => {
   const [showMatchForm, setShowMatchForm] = useState(false);
 
   // Results state
-  const [resultInputs, setResultInputs] = useState<Map<number, { home: string; away: string }>>(new Map());
+  const [resultInputs, setResultInputs] = useState<Map<number, { home: string; away: string; penalty_winner_id: string }>>(new Map());
   const [resultSaving, setResultSaving] = useState<Set<number>>(new Set());
 
   // Points config
@@ -115,9 +115,9 @@ const WCAdmin: React.FC = () => {
         });
       }
       // Initialize result inputs
-      const ri = new Map<number, { home: string; away: string }>();
+      const ri = new Map<number, { home: string; away: string; penalty_winner_id: string }>();
       ms.forEach(m => {
-        if (!m.is_completed) ri.set(m.id, { home: '', away: '' });
+        if (!m.is_completed) ri.set(m.id, { home: '', away: '', penalty_winner_id: '' });
       });
       setResultInputs(ri);
     } catch {
@@ -259,6 +259,8 @@ const WCAdmin: React.FC = () => {
   };
 
   // ── Results ──────────────────────────────────────────────────────────────
+  const KNOCKOUT_STAGES = new Set(['r16', 'qf', 'sf', '3rd', 'final']);
+
   const handleResultSave = async (matchId: number) => {
     const inp = resultInputs.get(matchId);
     if (!inp) return;
@@ -268,10 +270,14 @@ const WCAdmin: React.FC = () => {
       setError('Enter valid non-negative scores.');
       return;
     }
+    const match = matches.find(m => m.id === matchId);
+    const isKnockout = match && KNOCKOUT_STAGES.has(match.stage);
+    const penaltyWinnerId = isKnockout && home === away && inp.penalty_winner_id
+      ? parseInt(inp.penalty_winner_id) : null;
     setError(null);
     setResultSaving(prev => new Set(prev).add(matchId));
     try {
-      const updated = await wcService.setResult(matchId, home, away);
+      const updated = await wcService.setResult(matchId, home, away, penaltyWinnerId);
       setMatches(prev => prev.map(m => m.id === matchId ? updated : m));
     } catch (e: any) {
       setError(e.response?.data?.error || 'Failed to set result.');
@@ -619,8 +625,10 @@ const WCAdmin: React.FC = () => {
                   </thead>
                   <tbody>
                     {matches.filter(m => !m.is_completed).map(m => {
-                      const inp = resultInputs.get(m.id) || { home: '', away: '' };
+                      const inp = resultInputs.get(m.id) || { home: '', away: '', penalty_winner_id: '' };
                       const isSaving = resultSaving.has(m.id);
+                      const isKO = KNOCKOUT_STAGES.has(m.stage);
+                      const isDraw = inp.home !== '' && inp.away !== '' && parseInt(inp.home) === parseInt(inp.away);
                       return (
                         <tr key={m.id}>
                           <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -631,30 +639,51 @@ const WCAdmin: React.FC = () => {
                           </td>
                           <td><span className="wc-badge wc-badge-gold">{m.stage_display}</span></td>
                           <td>
-                            <div className="wc-result-inputs">
-                              <input
-                                className="wc-result-input"
-                                type="number" min={0} max={20}
-                                placeholder="0"
-                                value={inp.home}
-                                onChange={e => setResultInputs(prev => {
-                                  const n = new Map(prev);
-                                  n.set(m.id, { ...inp, home: e.target.value });
-                                  return n;
-                                })}
-                              />
-                              <span style={{ color: 'var(--wc-text-muted)', fontWeight: 700 }}>–</span>
-                              <input
-                                className="wc-result-input"
-                                type="number" min={0} max={20}
-                                placeholder="0"
-                                value={inp.away}
-                                onChange={e => setResultInputs(prev => {
-                                  const n = new Map(prev);
-                                  n.set(m.id, { ...inp, away: e.target.value });
-                                  return n;
-                                })}
-                              />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <div className="wc-result-inputs">
+                                <input
+                                  className="wc-result-input"
+                                  type="number" min={0} max={20}
+                                  placeholder="0"
+                                  value={inp.home}
+                                  onChange={e => setResultInputs(prev => {
+                                    const n = new Map(prev);
+                                    n.set(m.id, { ...inp, home: e.target.value });
+                                    return n;
+                                  })}
+                                />
+                                <span style={{ color: 'var(--wc-text-muted)', fontWeight: 700 }}>–</span>
+                                <input
+                                  className="wc-result-input"
+                                  type="number" min={0} max={20}
+                                  placeholder="0"
+                                  value={inp.away}
+                                  onChange={e => setResultInputs(prev => {
+                                    const n = new Map(prev);
+                                    n.set(m.id, { ...inp, away: e.target.value });
+                                    return n;
+                                  })}
+                                />
+                              </div>
+                              {isKO && isDraw && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 11, color: 'var(--wc-text-muted)', whiteSpace: 'nowrap' }}>🥅 Pens:</span>
+                                  <select
+                                    className="wc-select"
+                                    style={{ fontSize: 12, padding: '4px 8px' }}
+                                    value={inp.penalty_winner_id}
+                                    onChange={e => setResultInputs(prev => {
+                                      const n = new Map(prev);
+                                      n.set(m.id, { ...inp, penalty_winner_id: e.target.value });
+                                      return n;
+                                    })}
+                                  >
+                                    <option value="">— Penalty winner —</option>
+                                    <option value={m.home_team.id}>{m.home_team.flag} {m.home_team.name}</option>
+                                    <option value={m.away_team.id}>{m.away_team.flag} {m.away_team.name}</option>
+                                  </select>
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td>
@@ -684,6 +713,7 @@ const WCAdmin: React.FC = () => {
                   <div key={m.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--wc-border)', fontSize: 13 }}>
                     <span style={{ flex: 1 }}>
                       {m.home_team.flag} {m.home_team.name} <strong>{m.home_score}–{m.away_score}</strong> {m.away_team.name} {m.away_team.flag}
+                      {m.penalty_winner && <span style={{ color: 'var(--wc-text-muted)', marginLeft: 6 }}>(Pens: {m.penalty_winner.flag} {m.penalty_winner.name})</span>}
                     </span>
                     <span className="wc-badge wc-badge-green">Done</span>
                   </div>
@@ -825,6 +855,23 @@ const WCAdmin: React.FC = () => {
                 { key: 'exact_score', label: 'Exact Score', icon: '🎯', hint: 'e.g. correctly predicted 2–1' },
                 { key: 'correct_winner', label: 'Correct Winner', icon: '✅', hint: 'right team wins (or draw)' },
                 { key: 'correct_goal_difference', label: 'Goal Difference', icon: '↔', hint: 'right margin, wrong exact' },
+              ].map(({ key, label, icon, hint }) => (
+                <div key={key} className="wc-config-item">
+                  <div className="wc-config-item-label"><span>{icon}</span>{label}</div>
+                  <input className="wc-input" type="number" min={0} max={100}
+                    value={(configForm as any)[key] ?? ''}
+                    onChange={e => setConfigForm(p => ({ ...p, [key]: parseInt(e.target.value) || 0 }))} />
+                  <div className="wc-config-item-hint">{hint}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--wc-text-muted)', marginBottom: 12, marginTop: 8 }}>Knockout Match Predictions (R16 / QF / SF / Final)</div>
+            <div className="wc-config-grid" style={{ marginBottom: 24 }}>
+              {[
+                { key: 'ko_exact_score', label: 'Exact Score', icon: '🎯', hint: 'exact 90-min score in knockout' },
+                { key: 'ko_correct_winner', label: 'Correct Outcome', icon: '✅', hint: 'right team wins or predicts draw (goes to pens)' },
+                { key: 'ko_correct_goal_difference', label: 'Goal Difference', icon: '↔', hint: 'right margin in 90 min' },
+                { key: 'ko_correct_penalty_winner', label: 'Penalty Winner', icon: '🥅', hint: 'bonus: correct penalty winner (draw predictions)' },
               ].map(({ key, label, icon, hint }) => (
                 <div key={key} className="wc-config-item">
                   <div className="wc-config-item-label"><span>{icon}</span>{label}</div>

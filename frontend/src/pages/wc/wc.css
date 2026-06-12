@@ -629,6 +629,30 @@
   gap: 8px;
 }
 
+.wc-penalty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--wc-border);
+}
+
+.wc-penalty-label {
+  font-size: 12px;
+  color: var(--wc-text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wc-penalty-select {
+  font-size: 13px;
+  padding: 5px 10px;
+  flex: 1;
+  max-width: 220px;
+}
+
 .wc-score-input {
   width: 52px;
   text-align: center;

@@ -5,6 +5,7 @@ import WCLayout from './WCLayout';
 import { useAuth } from '../../context/AuthContext';
 
 const STAGE_ORDER = ['group', 'r16', 'qf', 'sf', '3rd', 'final'];
+const KNOCKOUT_STAGES = new Set(['r16', 'qf', 'sf', '3rd', 'final']);
 
 function formatMatchTime(iso: string) {
   const d = new Date(iso);
@@ -27,6 +28,7 @@ const WCMatches: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterStage, setFilterStage] = useState('all');
+  const [penaltyInputs, setPenaltyInputs] = useState<Map<number, number | null>>(new Map());
   const [groupPredictions, setGroupPredictions] = useState<Map<number, MatchPredictionDetail[]>>(new Map());
   const [expandedPredictions, setExpandedPredictions] = useState<Set<number>>(new Set());
   const [loadingGroupPreds, setLoadingGroupPreds] = useState<Set<number>>(new Set());
@@ -81,7 +83,7 @@ const WCMatches: React.FC = () => {
     });
   };
 
-  const handleSave = async (matchId: number) => {
+  const handleSave = async (matchId: number, match: Match) => {
     const inp = pendingInputs.get(matchId);
     if (!inp) return;
     const home = parseInt(inp.home);
@@ -90,10 +92,17 @@ const WCMatches: React.FC = () => {
       setError('Please enter valid non-negative scores.');
       return;
     }
+    const isKnockout = KNOCKOUT_STAGES.has(match.stage);
+    const isDraw = home === away;
+    if (isKnockout && isDraw && !penaltyInputs.get(matchId)) {
+      setError('Please select the penalty winner for this knockout match draw.');
+      return;
+    }
     setError(null);
+    const penaltyWinnerId = isKnockout && isDraw ? (penaltyInputs.get(matchId) ?? null) : null;
     setSaving(prev => new Set(prev).add(matchId));
     try {
-      const pred = await wcService.savePrediction(matchId, home, away);
+      const pred = await wcService.savePrediction(matchId, home, away, penaltyWinnerId);
       setMyPredictions(prev => new Map(prev).set(matchId, pred));
       setSavedFlash(prev => {
         const next = new Set(prev);
@@ -253,6 +262,11 @@ const WCMatches: React.FC = () => {
                                 <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--wc-text)' }}>
                                   {pred.home_score} – {pred.away_score}
                                 </span>
+                                {pred.penalty_winner && (
+                                  <span style={{ fontSize: 12, color: 'var(--wc-text-muted)' }}>
+                                    · Pens: {pred.penalty_winner.flag} {pred.penalty_winner.name}
+                                  </span>
+                                )}
                               </div>
                               {pred.points_earned !== null && (
                                 <span className="wc-pred-points-chip">+{pred.points_earned} pts</span>
@@ -272,6 +286,11 @@ const WCMatches: React.FC = () => {
                               <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--wc-text)' }}>
                                 {pred.home_score} – {pred.away_score}
                               </span>
+                              {pred.penalty_winner && (
+                                <span style={{ fontSize: 12, color: 'var(--wc-text-muted)' }}>
+                                  · Pens: {pred.penalty_winner.flag} {pred.penalty_winner.name}
+                                </span>
+                              )}
                               <span className="wc-pred-saved-chip">✓ Saved</span>
                             </div>
                           ) : (
@@ -297,10 +316,28 @@ const WCMatches: React.FC = () => {
                                   placeholder="0"
                                 />
                               </div>
+                              {KNOCKOUT_STAGES.has(match.stage) && inp.home !== '' && inp.away !== '' && parseInt(inp.home) === parseInt(inp.away) && (
+                                <div className="wc-penalty-row">
+                                  <span className="wc-penalty-label">🥅 Penalty winner:</span>
+                                  <select
+                                    className="wc-select wc-penalty-select"
+                                    value={penaltyInputs.get(match.id) ?? ''}
+                                    onChange={e => setPenaltyInputs(prev => {
+                                      const n = new Map(prev);
+                                      n.set(match.id, e.target.value ? parseInt(e.target.value) : null);
+                                      return n;
+                                    })}
+                                  >
+                                    <option value="">— Select team —</option>
+                                    <option value={match.home_team.id}>{match.home_team.flag} {match.home_team.name}</option>
+                                    <option value={match.away_team.id}>{match.away_team.flag} {match.away_team.name}</option>
+                                  </select>
+                                </div>
+                              )}
                               <button
                                 className="wc-pred-save-btn"
                                 disabled={isSaving}
-                                onClick={() => handleSave(match.id)}
+                                onClick={() => handleSave(match.id, match)}
                               >
                                 {isSaving ? '…' : 'Save'}
                               </button>

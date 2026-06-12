@@ -68,6 +68,11 @@ class Match(models.Model):
     home_score = models.IntegerField(null=True, blank=True)
     away_score = models.IntegerField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
+    penalty_winner = models.ForeignKey(
+        Team, related_name='penalty_wins',
+        null=True, blank=True, on_delete=models.SET_NULL,
+        help_text='Set if match went to penalties (knockout only)',
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -91,11 +96,19 @@ class Match(models.Model):
         return 'draw'
 
 
+KNOCKOUT_STAGES = {'r16', 'qf', 'sf', '3rd', 'final'}
+
+
 class Prediction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='wc_predictions')
     match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='predictions')
     home_score = models.IntegerField()
     away_score = models.IntegerField()
+    penalty_winner = models.ForeignKey(
+        Team, related_name='penalty_predictions',
+        null=True, blank=True, on_delete=models.SET_NULL,
+        help_text='Predicted penalty winner (knockout draw predictions only)',
+    )
     points_earned = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -112,17 +125,19 @@ class Prediction(models.Model):
         if not match.is_completed:
             return None
 
+        is_ko = match.stage in KNOCKOUT_STAGES
         pts = 0
         actual_home = match.home_score
         actual_away = match.away_score
         pred_home = self.home_score
         pred_away = self.away_score
 
-        # Exact score
         if pred_home == actual_home and pred_away == actual_away:
-            pts += config.exact_score
+            pts += config.ko_exact_score if is_ko else config.exact_score
+            # Bonus: correct penalty winner when exact draw in knockout
+            if is_ko and actual_home == actual_away and match.penalty_winner_id and self.penalty_winner_id == match.penalty_winner_id:
+                pts += config.ko_correct_penalty_winner
         else:
-            # Correct winner / draw
             actual_result = match.get_result_label()
             if actual_home > actual_away:
                 pred_result = 'home' if pred_home > pred_away else ('draw' if pred_home == pred_away else 'away')
@@ -132,11 +147,13 @@ class Prediction(models.Model):
                 pred_result = 'draw' if pred_home == pred_away else ('home' if pred_home > pred_away else 'away')
 
             if pred_result == actual_result:
-                pts += config.correct_winner
+                pts += config.ko_correct_winner if is_ko else config.correct_winner
+                # Bonus: correct penalty winner when draw correctly predicted in knockout
+                if is_ko and actual_result == 'draw' and match.penalty_winner_id and self.penalty_winner_id == match.penalty_winner_id:
+                    pts += config.ko_correct_penalty_winner
 
-            # Correct goal difference (only if not exact score)
             if (actual_home - actual_away) == (pred_home - pred_away):
-                pts += config.correct_goal_difference
+                pts += config.ko_correct_goal_difference if is_ko else config.correct_goal_difference
 
         return pts
 
@@ -175,6 +192,11 @@ class PointsConfig(models.Model):
     tournament_winner = models.IntegerField(default=10, help_text='Points for predicting tournament winner')
     tournament_runner_up = models.IntegerField(default=5, help_text='Points for predicting runner-up')
     tournament_predictions_locked = models.BooleanField(default=False, help_text='Lock tournament winner/runner-up predictions')
+    # Knockout match points (r16, qf, sf, 3rd, final)
+    ko_exact_score = models.IntegerField(default=6, help_text='Knockout: exact 90-min score')
+    ko_correct_winner = models.IntegerField(default=4, help_text='Knockout: correct 90-min outcome (win/draw)')
+    ko_correct_goal_difference = models.IntegerField(default=2, help_text='Knockout: correct goal difference')
+    ko_correct_penalty_winner = models.IntegerField(default=3, help_text='Knockout: bonus for predicting correct penalty winner (draw predictions)')
     # Team Rankings points
     ranking_top3_each = models.IntegerField(default=5, help_text='Points for each team correctly placed in top 3 (any position)')
     ranking_correct_first = models.IntegerField(default=15, help_text='Bonus: correct 1st place team')

@@ -30,6 +30,7 @@ export interface Match {
   match_number: number | null;
   home_score: number | null;
   away_score: number | null;
+  penalty_winner: Team | null;
   is_completed: boolean;
   is_locked: boolean;
   result_label: string | null;
@@ -41,6 +42,7 @@ export interface Prediction {
   match: Match;
   home_score: number;
   away_score: number;
+  penalty_winner: Team | null;
   points_earned: number | null;
   created_at: string;
   updated_at: string;
@@ -70,6 +72,10 @@ export interface PointsConfig {
   exact_score: number;
   correct_winner: number;
   correct_goal_difference: number;
+  ko_exact_score: number;
+  ko_correct_winner: number;
+  ko_correct_goal_difference: number;
+  ko_correct_penalty_winner: number;
   tournament_winner: number;
   tournament_runner_up: number;
   tournament_predictions_locked: boolean;
@@ -144,6 +150,7 @@ export interface MatchPredictionDetail {
   username: string;
   home_score: number;
   away_score: number;
+  penalty_winner: Team | null;
   points_earned: number | null;
 }
 
@@ -160,8 +167,8 @@ export const wcService = {
     wcApi.post<Match>('/matches/', data).then(r => r.data),
   updateMatch: (id: number, data: any) => wcApi.patch<Match>(`/matches/${id}/`, data).then(r => r.data),
   deleteMatch: (id: number) => wcApi.delete(`/matches/${id}/`),
-  setResult: (id: number, home_score: number, away_score: number) =>
-    wcApi.post<Match>(`/matches/${id}/set_result/`, { home_score, away_score }).then(r => r.data),
+  setResult: (id: number, home_score: number, away_score: number, penalty_winner_id?: number | null) =>
+    wcApi.post<Match>(`/matches/${id}/set_result/`, { home_score, away_score, penalty_winner_id }).then(r => r.data),
   getMatchPredictions: (id: number) =>
     wcApi.get<MatchPredictionDetail[]>(`/matches/${id}/predictions/`).then(r => r.data),
   getGroupPredictions: (matchId: number) =>
@@ -169,8 +176,8 @@ export const wcService = {
 
   // Predictions
   getMyPredictions: () => wcApi.get<Prediction[]>('/predictions/my_predictions/').then(r => r.data),
-  savePrediction: (match_id: number, home_score: number, away_score: number) =>
-    wcApi.post<Prediction>('/predictions/', { match_id, home_score, away_score }).then(r => r.data),
+  savePrediction: (match_id: number, home_score: number, away_score: number, penalty_winner_id?: number | null) =>
+    wcApi.post<Prediction>('/predictions/', { match_id, home_score, away_score, penalty_winner_id }).then(r => r.data),
 
   // Tournament prediction
   getTournamentPrediction: () =>
